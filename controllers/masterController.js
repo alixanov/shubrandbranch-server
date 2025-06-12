@@ -66,7 +66,7 @@ exports.createSaleToCar = async (req, res) => {
 exports.createPaymentToMaster = async (req, res) => {
     try {
         const { master_id } = req.params;
-        const { car_id, amount, currency } = req.body;
+        const { car_id, amount, currency, payment_method } = req.body;
         const rateDoc = await Rate.findOne();
         const usdRate = rateDoc?.rate || 1;
 
@@ -77,7 +77,7 @@ exports.createPaymentToMaster = async (req, res) => {
         if (!car) return res.status(404).json({ message: "Mashina topilmadi" });
 
         // 1. To'lovni car.payment_log ga qo‘shamiz
-        car.payment_log.push({ amount, currency });
+        car.payment_log.push({ amount, currency, payment_method });
 
         // 2. Jami car sotuv va to‘lovni hisoblaymiz
         const totalSales = car.sales.reduce((sum, sale) => {
@@ -112,3 +112,16 @@ exports.createPaymentToMaster = async (req, res) => {
         return res.status(500).json({ message: "Serverda xatolik" });
     }
 };
+
+
+exports.deleteMasterById = async (req, res) => {
+    try {
+        const { master_id } = req.params
+        await Master.findByIdAndDelete(master_id)
+        return res.json({ message: "Usta o'chirildi" })
+
+    } catch (err) {
+        console.log(err.message)
+        return response.error(res, "Serverda xatolik", 500);
+    }
+}

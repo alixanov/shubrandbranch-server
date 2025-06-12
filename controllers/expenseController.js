@@ -3,8 +3,8 @@ const Expense = require("../models/Expense");
 // Xarajat yaratish
 exports.addExpense = async (req, res) => {
   try {
-    const { payment_summ, comment } = req.body;
-    const newExpense = new Expense({ payment_summ, comment });
+    const { payment_summ, comment, staff_name } = req.body;
+    const newExpense = new Expense({ payment_summ, comment, staff_name });
     await newExpense.save();
     res.status(201).json({ message: "Xarajat qo'shildi", newExpense });
   } catch (error) {

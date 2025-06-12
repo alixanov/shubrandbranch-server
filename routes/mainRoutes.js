@@ -164,5 +164,6 @@ router.post('/master/:master_id/car/:car_id/sale', authMiddleware.verifyToken, m
 
 // Ustaga to‘lov qo‘shish
 router.post('/master/:master_id/payment', authMiddleware.verifyToken, masterController.createPaymentToMaster);
+router.delete('/master/:master_id/delete', authMiddleware.verifyToken, masterController.deleteMasterById)
 
 module.exports = router;

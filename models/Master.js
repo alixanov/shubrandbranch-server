@@ -45,6 +45,10 @@ const MasterSchema = new mongoose.Schema({
                                 type: String,
                                 enum: ['usd', 'sum'],
                                 default: 'sum'
+                            },
+                            payment_method: {
+                                type: String,
+                                enum: ['cash', 'card']
                             }
                         }
                     ],
