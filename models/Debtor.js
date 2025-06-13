@@ -13,7 +13,7 @@ const debtorSchema = new mongoose.Schema(
       type: [
         {
           amount: { type: Number, required: true },
-          currency: { type: String, required: true },
+          currency: { type: String, required: true, default: "usd" },
           date: { type: Date, default: Date.now },
         }
       ],
@@ -31,12 +31,11 @@ const debtorSchema = new mongoose.Schema(
         sell_price: { type: Number, required: true },
         sold_date: { type: Date, default: Date.now },
         due_date: { type: Date, required: true },
-      },
-    ],
-    payment_log: [
-      {
-        amount: Number,
-        date: Date,
+        currency: {
+          type: String,
+          enum: ["usd", "sum"],
+          // required: true
+        }
       },
     ],
   },

@@ -180,6 +180,8 @@ exports.vazvratDebt = async (req, res) => {
 exports.createPayment = async (req, res) => {
   try {
     const { id, amount, currency, rate, payment_method = "naqd" } = req.body;
+    console.log(req.body);
+
 
     if (!id || !amount || !currency || !rate) {
       return res.status(400).json({ message: "Kerakli maydonlar to'liq emas" });
@@ -191,30 +193,45 @@ exports.createPayment = async (req, res) => {
     }
 
     // 💰 To‘lov summasini dollarga konvertatsiya qilish
-    let amountInUsd =
+    const amountInUsd =
       currency === "usd"
         ? parseFloat(amount)
-        : parseFloat((amount / rate));
+        : parseFloat((amount / rate).toFixed(2));
+
+    // 🧮 Qarzni mahsulotlardan hisoblash (USDda)
+    let totalDebtUsd = 0;
+    debtor.products.forEach((item) => {
+      const itemPrice = item.currency === "usd"
+        ? item.sell_price
+        : item.sell_price / rate;
+
+      totalDebtUsd += itemPrice * item.product_quantity;
+    });
+    totalDebtUsd = parseFloat(totalDebtUsd.toFixed(2));
+    // 🧮 Qoldiq qarz
+    const remainingDebt = parseFloat((totalDebtUsd - debtor.payment_log.reduce((acc, item) => acc + item.currency === "sum" ? item.amount / rate : item.amount) - amountInUsd).toFixed(2));
+    console.log(remainingDebt);
+    console.log(totalDebtUsd);
     console.log(amountInUsd);
 
-    let remainingDebt = parseFloat((debtor.debt_amount - amountInUsd));
 
     // ✅ Agar to‘liq to‘langan bo‘lsa — sotuvga yozish
-    if (remainingDebt <= 0) {
+    if (remainingDebt.toFixed() <= 0) {
       for (const item of debtor.products) {
         const product = await Product.findById(item.product_id);
         if (!product) continue;
 
-        const total_price = item.sell_price * item.product_quantity;
-        const total_price_sum =
-          currency === "usd" ? total_price : total_price * rate;
+        const total_price = parseFloat((item.sell_price * item.product_quantity).toFixed(2));
+        const total_price_sum = item.currency === "usd"
+          ? total_price
+          : parseFloat((total_price * rate).toFixed(2));
 
         const sale = new Sale({
           product_id: product._id,
           product_name: item.product_name,
           sell_price: item.sell_price,
           buy_price: product.purchase_price,
-          currency: 'usd',
+          currency: item.currency,
           quantity: item.product_quantity,
           total_price,
           total_price_sum,
@@ -228,7 +245,6 @@ exports.createPayment = async (req, res) => {
       }
 
       await Debtor.findByIdAndUpdate(id, {
-        debt_amount: 0,
         products: [],
         payment_log: [],
       });
@@ -236,14 +252,14 @@ exports.createPayment = async (req, res) => {
       return res.status(200).json({ message: "Qarz to'liq yopildi" });
     }
 
-    // ♻️ Qisman to‘lov bo‘lsa — faqat kamaytirish
+    // ♻️ Qisman to‘lov bo‘lsa — faqat payment_log ga yozish
     await Debtor.findByIdAndUpdate(id, {
-      debt_amount: remainingDebt,
       $push: {
         payment_log: {
           amount: parseFloat(amount),
           date: new Date(),
-          currency,
+          currency: currency,
+          rate: parseFloat(rate),
         },
       },
     });
@@ -255,3 +271,4 @@ exports.createPayment = async (req, res) => {
     return res.status(500).json({ message: "Serverda xatolik" });
   }
 };
+
