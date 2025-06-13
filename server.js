@@ -34,9 +34,8 @@ app.use(
   })
 );
 
-// Yo'nalishlar
 app.use("/api", mainRoutes);
-
+// jhgshjgjgfdj
 const PORT = process.env.PORT || 8082;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
