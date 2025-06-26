@@ -54,21 +54,20 @@ exports.createDebtor = async (req, res) => {
 exports.editDebtor = async (req, res) => {
   try {
     const { id } = req.params;
-    await Debtor.findByIdAndUpdate(id, req.body)
+    await Debtor.findByIdAndUpdate(id, req.body);
     res.status(200).json({ message: "Qarzdor ma'lumotlari yangilandi" });
-
   } catch (err) {
-    console.log(err.message)
+    console.log(err.message);
     return res.status(500).json({ message: "Serverda xatolik" });
   }
-}
+};
 exports.updateDebtor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { paid_amount, product_id } = req.body;
+    const { amount, product_id } = req.body;
 
-    const parsedAmount = paid_amount;
-    if (!paid_amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+    const parsedAmount = amount;
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ message: "To'langan summa noto'g'ri" });
     }
 
@@ -192,12 +191,10 @@ exports.createPayment = async (req, res) => {
 
     // 💰 To‘lov summasini dollarga konvertatsiya qilish
     let amountInUsd =
-      currency === "usd"
-        ? parseFloat(amount)
-        : parseFloat((amount / rate));
+      currency === "usd" ? parseFloat(amount) : parseFloat(amount / rate);
     console.log(amountInUsd);
 
-    let remainingDebt = parseFloat((debtor.debt_amount - amountInUsd));
+    let remainingDebt = parseFloat(debtor.debt_amount - amountInUsd);
 
     // ✅ Agar to‘liq to‘langan bo‘lsa — sotuvga yozish
     if (remainingDebt <= 0) {
@@ -214,7 +211,7 @@ exports.createPayment = async (req, res) => {
           product_name: item.product_name,
           sell_price: item.sell_price,
           buy_price: product.purchase_price,
-          currency: 'usd',
+          currency: "usd",
           quantity: item.product_quantity,
           total_price,
           total_price_sum,
@@ -249,7 +246,6 @@ exports.createPayment = async (req, res) => {
     });
 
     return res.status(200).json({ message: "Qisman to'lov qabul qilindi" });
-
   } catch (err) {
     console.error(err.message);
     return res.status(500).json({ message: "Serverda xatolik" });
