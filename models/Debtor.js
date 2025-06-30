@@ -19,6 +19,7 @@ const debtorSchema = new mongoose.Schema(
       ],
       default: [],
     },
+    
     products: [
       {
         product_id: {
