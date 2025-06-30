@@ -3,75 +3,89 @@ const Sale = require("../models/Sale");
 const Store = require("../models/Store");
 const Product = require("../models/Product");
 
-exports.createDebtor = async (req, res) => {
+exports.createPayment = async (req, res) => {
   try {
-    const { name, phone, due_date, currency = "sum", products = [] } = req.body;
+    const { id, amount, currency, rate, payment_method = "naqd" } = req.body;
 
-    if (
-      !name ||
-      !phone ||
-      !due_date ||
-      !Array.isArray(products) ||
-      products.length === 0
-    ) {
-      return res.status(400).json({ message: "Ma'lumotlar to‘liq emas" });
+    if (!id || !amount || !currency || !rate) {
+      return res.status(400).json({ message: "Kerakli maydonlar to'liq emas" });
     }
 
-    let total_debt = 0;
+    const debtor = await Debtor.findById(id);
+    if (!debtor) {
+      return res.status(404).json({ message: "Qarzdor topilmadi" });
+    }
 
-    // Har bir mahsulotni tekshiramiz
-    for (const [index, product] of products.entries()) {
-      const {
-        product_id,
-        product_name,
-        sell_price,
-        currency: prodCurrency,
-        product_quantity,
-        quantity,
-      } = product;
+    // 💰 To‘lovni USDga aylantiramiz
+    const amountInUsd =
+      currency === "usd" ? parseFloat(amount) : parseFloat(amount / rate);
 
-      // quantity yoki product_quantity dan birini olish
-      const final_quantity = product_quantity ?? quantity;
+    const remainingDebt = debtor.debt_amount - amountInUsd;
 
-      if (
-        !product_id ||
-        !product_name ||
-        sell_price == null ||
-        isNaN(Number(sell_price)) ||
-        final_quantity == null ||
-        isNaN(Number(final_quantity))
-      ) {
-        return res.status(400).json({
-          message: `Mahsulotdagi qiymatlar to‘liq emas (index: ${index})`,
-          product,
+    // ✅ Agar to‘liq to‘langan bo‘lsa
+    if (remainingDebt <= 0) {
+      for (const item of debtor.products) {
+        const product = await Product.findById(item.product_id);
+        if (!product) continue;
+
+        const storeItem = await Store.findOne({ product_id: item.product_id });
+
+        if (!storeItem || storeItem.quantity < item.product_quantity) {
+          return res.status(400).json({
+            message: `Omborda ${item.product_name} uchun yetarli mahsulot yo'q`,
+          });
+        }
+
+        // 📉 Ombordan mahsulotni ayiramiz
+        storeItem.quantity -= item.product_quantity;
+        await storeItem.save();
+
+        const total_price = item.sell_price * item.product_quantity;
+        const total_price_sum =
+          currency === "usd" ? total_price : total_price * rate;
+
+        await Sale.create({
+          product_id: product._id,
+          product_name: item.product_name,
+          sell_price: item.sell_price,
+          buy_price: product.purchase_price,
+          currency: "usd",
+          quantity: item.product_quantity,
+          total_price,
+          total_price_sum,
+          payment_method,
+          debtor_name: debtor.name,
+          debtor_phone: debtor.phone,
+          debt_due_date: debtor.due_date,
         });
       }
 
-      // Backend uchun product_quantity ni to‘ldirish
-      product.product_quantity = Number(final_quantity);
-      product.currency = prodCurrency || currency;
+      // Qarzni to‘liq yopamiz
+      debtor.debt_amount = 0;
+      debtor.products = [];
+      debtor.payment_log = [];
+      await debtor.save();
 
-      // Umumiy qarzni hisoblash
-      total_debt += Number(sell_price) * Number(final_quantity);
+      return res.status(200).json({ message: "Qarz to'liq yopildi" });
     }
 
-    // Yangi qarzdor obyektini yaratamiz
-    const newDebtor = new Debtor({
-      name,
-      phone,
-      due_date,
+    // ♻️ Qisman to‘lov bo‘lsa — faqat kamaytirish
+    debtor.debt_amount = remainingDebt;
+    debtor.payment_log.push({
+      amount: parseFloat(amount),
+      date: new Date(),
       currency,
-      debt_amount: total_debt,
-      products,
     });
 
-    await newDebtor.save();
-    res.status(201).json(newDebtor);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Serverda xatolik: " + error.message });
+    await debtor.save();
+
+    return res.status(200).json({ message: "Qisman to'lov qabul qilindi" });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ message: "Serverda xatolik" });
   }
 };
+
 
 
 exports.editDebtor = async (req, res) => {
