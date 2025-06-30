@@ -20,7 +20,7 @@ exports.recordSale = async (req, res) => {
       debtor_name,
       debtor_phone,
       debt_due_date,
-      location, // ✅ Qaysi joydan sotilayotganini aniqlash uchun
+      location="store" ,// ✅ Qaysi joydan sotilayotganini aniqlash uchun
     } = req.body;
 
     // Mahsulotni topish va miqdorni tekshirish
