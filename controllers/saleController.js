@@ -10,7 +10,7 @@ exports.recordSale = async (req, res) => {
       product_id,
       product_name,
       sell_price,
-      buy_price, // ✅ frontenddan kelgan, konvertatsiyalangan qiymat
+      buy_price,
       quantity,
       currency,
       total_price,
@@ -21,6 +21,7 @@ exports.recordSale = async (req, res) => {
       debt_due_date,
     } = req.body;
 
+    // 💳 Agar qarz bo‘lsa, Debtorga yoziladi
     if (payment_method === "qarz") {
       const newDebtor = new Debtor({
         name: debtor_name,
@@ -28,6 +29,15 @@ exports.recordSale = async (req, res) => {
         debt_amount: total_price,
         due_date: debt_due_date,
         product_quantity: quantity,
+        products: [
+          {
+            product_id,
+            product_name,
+            sell_price,
+            product_quantity: quantity,
+            currency,
+          },
+        ],
       });
       await newDebtor.save();
       return res.status(201).json({
@@ -36,16 +46,31 @@ exports.recordSale = async (req, res) => {
       });
     }
 
+    // 💰 Foydani hisoblash
     const totalProfit = (sell_price - buy_price) * quantity;
     if (isNaN(totalProfit)) {
       return res.status(400).json({ message: "Noto'g'ri foyda qiymati" });
     }
 
+    // 📦 Mahsulot ombordagi miqdorini kamaytirish
+    const product = await Product.findById(product_id);
+    if (!product) {
+      return res.status(404).json({ message: "Mahsulot topilmadi" });
+    }
+
+    if (product.quantity < quantity) {
+      return res.status(400).json({ message: "Omborda yetarli mahsulot yo'q" });
+    }
+
+    product.quantity -= quantity;
+    await product.save();
+
+    // 🧾 Sotuvni saqlash
     const newSale = new Sale({
       product_id,
       product_name,
       sell_price,
-      buy_price, // ✅ TO‘G‘RI
+      buy_price,
       quantity,
       total_price,
       payment_method,
@@ -58,10 +83,12 @@ exports.recordSale = async (req, res) => {
 
     await newSale.save();
 
+    // 💵 Budjetga foyda qo‘shish
     let budget = await Budget.findOne();
     if (!budget) {
       budget = new Budget({ totalBudget: 0 });
     }
+
     budget.totalBudget += totalProfit;
     await budget.save();
 
