@@ -21,6 +21,19 @@ exports.recordSale = async (req, res) => {
       debt_due_date,
     } = req.body;
 
+    // Mahsulotni topish va miqdorni tekshirish
+    const product = await Product.findById(product_id);
+    if (!product) {
+      return res.status(404).json({ message: "Mahsulot topilmadi" });
+    }
+
+    // Omborda yetarli miqdor borligini tekshirish
+    if (product.quantity < quantity) {
+      return res.status(400).json({
+        message: `Omborda yetarli mahsulot yo'q. Mavjud: ${product.quantity}, talab: ${quantity}`,
+      });
+    }
+
     if (payment_method === "qarz") {
       const newDebtor = new Debtor({
         name: debtor_name,
@@ -30,6 +43,11 @@ exports.recordSale = async (req, res) => {
         product_quantity: quantity,
       });
       await newDebtor.save();
+
+      // Qarzdorlik holatida ham ombordan mahsulot ayrilishi kerak
+      product.quantity -= quantity;
+      await product.save();
+
       return res.status(201).json({
         message: "Debtor recorded successfully",
         debtor: newDebtor,
@@ -45,7 +63,7 @@ exports.recordSale = async (req, res) => {
       product_id,
       product_name,
       sell_price,
-      buy_price, // ✅ TO‘G‘RI
+      buy_price, // ✅ TO'G'RI
       quantity,
       total_price,
       payment_method,
@@ -58,6 +76,10 @@ exports.recordSale = async (req, res) => {
 
     await newSale.save();
 
+    // Mahsulot miqdorini ombordan ayirish
+    product.quantity -= quantity;
+    await product.save();
+
     let budget = await Budget.findOne();
     if (!budget) {
       budget = new Budget({ totalBudget: 0 });
@@ -68,12 +90,12 @@ exports.recordSale = async (req, res) => {
     return res.status(201).json({
       message: "Sale recorded successfully and budget updated",
       sale: newSale,
+      remaining_quantity: product.quantity, // Qolgan miqdorni qaytarish
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 };
-
 
 // Barcha sotuv tarixini olish
 exports.getSalesHistory = async (req, res) => {
@@ -183,7 +205,6 @@ exports.compareStockLevels = async (req, res) => {
   }
 };
 
-
 exports.getLast12MonthsSales = async (req, res) => {
   try {
     const today = new Date();
@@ -196,7 +217,10 @@ exports.getLast12MonthsSales = async (req, res) => {
       last12Months.push({
         year: date.getFullYear(),
         month: date.getMonth() + 1,
-        dateStr: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+        dateStr: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}`,
       });
     }
 
@@ -230,7 +254,7 @@ exports.getLast12MonthsSales = async (req, res) => {
         (sale) => sale._id.year === year && sale._id.month === month
       );
 
-      // Barcha mahsulotlarni tahlil qilib, mavjud bo‘lmaganlarini qo‘shish
+      // Barcha mahsulotlarni tahlil qilib, mavjud bo'lmaganlarini qo'shish
       const productMap = new Map();
 
       allProducts.forEach((product) => {
