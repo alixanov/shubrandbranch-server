@@ -161,24 +161,35 @@ exports.deleteDebtor = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
 exports.vazvratDebt = async (req, res) => {
   try {
     const { quantity, id, product_id } = req.body;
+
+    const numericQuantity = Number(quantity);
+    if (!numericQuantity || isNaN(numericQuantity) || numericQuantity <= 0) {
+      return res.status(400).json({ message: "Miqdor noto‘g‘ri kiritilgan" });
+    }
 
     const debtor = await Debtor.findById(id);
     if (!debtor) return res.status(404).json({ message: "Qarzdor topilmadi" });
 
     const product = await Product.findById(product_id);
-    const storeProduct = await Store.findOne({ product_id });
+    if (!product)
+      return res.status(404).json({ message: "Mahsulot topilmadi" });
+
+    let storeProduct = await Store.findOne({ product_id });
 
     if (!storeProduct) {
-      await Store.create({
+      storeProduct = await Store.create({
         product_id: product._id,
         product_name: product.product_name,
-        quantity,
+        quantity: numericQuantity,
       });
     } else {
-      storeProduct.quantity += quantity;
+      storeProduct.quantity += numericQuantity;
       await storeProduct.save();
     }
 
@@ -195,24 +206,27 @@ exports.vazvratDebt = async (req, res) => {
     }
 
     const item = debtor.products[prodIndex];
-    item.product_quantity -= quantity;
-    debtor.debt_amount -= item.sell_price * quantity;
+
+    item.product_quantity -= numericQuantity;
+    debtor.debt_amount -= item.sell_price * numericQuantity;
 
     if (item.product_quantity <= 0) {
       debtor.products.splice(prodIndex, 1);
     }
 
-    // if (debtor.products.length === 0) {
-    //   await Debtor.findByIdAndDelete(id);
-    // } else {
     await debtor.save();
-    // }
 
     res.status(200).json({ message: "Mahsulot qaytarildi" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
+
+
+
+
+
 exports.createPayment = async (req, res) => {
   try {
     const { id, amount, currency, rate, payment_method = "naqd" } = req.body;
