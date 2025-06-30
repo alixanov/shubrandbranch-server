@@ -8,32 +8,44 @@ exports.createDebtor = async (req, res) => {
   try {
     const { name, phone, due_date, currency = "sum", products = [] } = req.body;
 
+    if (
+      !name ||
+      !phone ||
+      !due_date ||
+      !Array.isArray(products) ||
+      products.length === 0
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Mijoz ma'lumotlari yoki mahsulotlar to‘liq emas" });
+    }
+
     let total_debt = 0;
 
-    // Har bir mahsulotni tekshiramiz
-    for (const product of products) {
+    for (const [index, product] of products.entries()) {
+      // Kutilayotgan qiymatlar mavjudmi va to‘g‘rimi
       if (
         !product.product_id ||
         !product.product_name ||
         product.sell_price == null ||
-        isNaN(product.sell_price) ||
+        isNaN(Number(product.sell_price)) ||
         product.product_quantity == null ||
-        isNaN(product.product_quantity)
+        isNaN(Number(product.product_quantity))
       ) {
-        return res
-          .status(400)
-          .json({ message: "Mahsulotdagi qiymatlar to‘liq emas" });
+        return res.status(400).json({
+          message: `Mahsulotdagi qiymatlar to‘liq emas (index: ${index})`,
+          product,
+        });
       }
 
-      // Valyuta biriktiramiz
+      // Valyutani to‘ldirish (agar frontenddan kelmasa)
       product.currency = product.currency || currency;
 
-      // Jami qarzni hisoblaymiz
+      // Jami qarzni hisoblash
       total_debt +=
         Number(product.sell_price) * Number(product.product_quantity);
     }
 
-    // Yangi qarzdorni yaratamiz
     const newDebtor = new Debtor({
       name,
       phone,
@@ -44,12 +56,18 @@ exports.createDebtor = async (req, res) => {
     });
 
     await newDebtor.save();
-    res.status(201).json(newDebtor);
+
+    return res
+      .status(201)
+      .json({ message: "Qarzdor saqlandi", debtor: newDebtor });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: error.message });
+    console.error("createDebtor xatolik:", error.message);
+    return res
+      .status(500)
+      .json({ message: "Serverda xatolik", error: error.message });
   }
 };
+
 
 
 exports.editDebtor = async (req, res) => {
