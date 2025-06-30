@@ -85,7 +85,11 @@ router.get("/protected-route", authMiddleware.verifyToken, (req, res) => {
 
 // Sotuvni yozish marshruti
 router.post("/sales", saleController.recordSale);
-
+router.delete(
+  "/sales/:id",
+  authMiddleware.verifyToken,
+  saleController.deleteSale
+);
 // Sotuv tarixini olish marshruti
 router.get("/sales", saleController.getSalesHistory);
 

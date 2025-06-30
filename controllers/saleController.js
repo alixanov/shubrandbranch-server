@@ -316,3 +316,51 @@ exports.getLast12MonthsSales = async (req, res) => {
     res.status(400).json({ message: error?.message || "Xatolik yuz berdi" });
   }
 };
+
+
+exports.deleteSale = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sale = await Sale.findById(id);
+    if (!sale) return res.status(404).json({ message: "Sotuv topilmadi" });
+
+    const {
+      product_id,
+      quantity,
+      sell_price,
+      buy_price,
+      location = "store",
+    } = sale;
+
+    const profitToRemove = (sell_price - buy_price) * quantity;
+
+    // Mahsulotni qayta qo‘shish
+    if (location === "store" || location === "dokon") {
+      const storeProduct = await Store.findOne({ product_id });
+      if (storeProduct) {
+        storeProduct.quantity += quantity;
+        await storeProduct.save();
+      }
+    } else {
+      const product = await Product.findById(product_id);
+      if (product) {
+        product.quantity += quantity;
+        await product.save();
+      }
+    }
+
+    // Byudjetni kamaytirish
+    const budget = await Budget.findOne();
+    if (budget) {
+      budget.totalBudget -= profitToRemove;
+      await budget.save();
+    }
+
+    await sale.deleteOne();
+
+    res.status(200).json({ message: "Sotuv o‘chirildi va miqdor tiklandi" });
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).json({ message: "Serverda xatolik" });
+  }
+};
