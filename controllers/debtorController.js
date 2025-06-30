@@ -8,13 +8,6 @@ exports.createDebtor = async (req, res) => {
   try {
     const { name, phone, due_date, currency = "sum", products = [] } = req.body;
 
-    // 1. Tekshir: products massiv bo‘lishi kerak
-    if (!Array.isArray(products) || products.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Mahsulotlar noto‘g‘ri formatda" });
-    }
-
     let total_debt = 0;
 
     // 2. Har bir mahsulotni tekshir va currency biriktir
