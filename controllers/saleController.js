@@ -1,7 +1,8 @@
 const Sale = require("../models/Sale");
 const Debtor = require("../models/Debtor");
 const Budget = require("../models/Budget");
-const Product = require("../models/Product"); // Product modelini import qilish
+const Product = require("../models/Product");
+const Store = require("../models/Store"); // ✅ Store modelini import qilish
 
 // Sotuvni yaratish yoki yangilash
 exports.recordSale = async (req, res) => {
@@ -10,7 +11,7 @@ exports.recordSale = async (req, res) => {
       product_id,
       product_name,
       sell_price,
-      buy_price, // ✅ frontenddan kelgan, konvertatsiyalangan qiymat
+      buy_price,
       quantity,
       currency,
       total_price,
@@ -19,18 +20,37 @@ exports.recordSale = async (req, res) => {
       debtor_name,
       debtor_phone,
       debt_due_date,
+      location, // ✅ Qaysi joydan sotilayotganini aniqlash uchun
     } = req.body;
 
     // Mahsulotni topish va miqdorni tekshirish
-    const product = await Product.findById(product_id);
-    if (!product) {
-      return res.status(404).json({ message: "Mahsulot topilmadi" });
+    let availableQuantity = 0;
+    let product = null;
+    let storeProduct = null;
+
+    if (location === "store" || location === "dokon") {
+      // ✅ Dokondan sotish
+      storeProduct = await Store.findOne({ product_id });
+      if (!storeProduct) {
+        return res.status(404).json({ message: "Mahsulot dokonda topilmadi" });
+      }
+      availableQuantity = storeProduct.quantity;
+      product = await Product.findById(product_id);
+    } else {
+      // ✅ Ombordan sotish
+      product = await Product.findById(product_id);
+      if (!product) {
+        return res.status(404).json({ message: "Mahsulot topilmadi" });
+      }
+      availableQuantity = product.quantity;
     }
 
-    // Omborda yetarli miqdor borligini tekshirish
-    if (product.quantity < quantity) {
+    // Yetarli miqdor borligini tekshirish
+    if (availableQuantity < quantity) {
       return res.status(400).json({
-        message: `Omborda yetarli mahsulot yo'q. Mavjud: ${product.quantity}, talab: ${quantity}`,
+        message: `${
+          location === "store" ? "Dokonda" : "Omborda"
+        } yetarli mahsulot yo'q. Mavjud: ${availableQuantity}, talab: ${quantity}`,
       });
     }
 
@@ -44,9 +64,14 @@ exports.recordSale = async (req, res) => {
       });
       await newDebtor.save();
 
-      // Qarzdorlik holatida ham ombordan mahsulot ayrilishi kerak
-      product.quantity -= quantity;
-      await product.save();
+      // ✅ Qarzdorlik holatida ham mahsulot ayrilishi kerak
+      if (location === "store" || location === "dokon") {
+        storeProduct.quantity -= quantity;
+        await storeProduct.save();
+      } else {
+        product.quantity -= quantity;
+        await product.save();
+      }
 
       return res.status(201).json({
         message: "Debtor recorded successfully",
@@ -63,7 +88,7 @@ exports.recordSale = async (req, res) => {
       product_id,
       product_name,
       sell_price,
-      buy_price, // ✅ TO'G'RI
+      buy_price,
       quantity,
       total_price,
       payment_method,
@@ -72,13 +97,19 @@ exports.recordSale = async (req, res) => {
       currency,
       debtor_phone: null,
       debt_due_date: null,
+      location: location || "warehouse", // ✅ Qaysi joydan sotilganini saqlash
     });
 
     await newSale.save();
 
-    // Mahsulot miqdorini ombordan ayirish
-    product.quantity -= quantity;
-    await product.save();
+    // ✅ Mahsulot miqdorini tegishli joydan ayirish
+    if (location === "store" || location === "dokon") {
+      storeProduct.quantity -= quantity;
+      await storeProduct.save();
+    } else {
+      product.quantity -= quantity;
+      await product.save();
+    }
 
     let budget = await Budget.findOne();
     if (!budget) {
@@ -90,7 +121,8 @@ exports.recordSale = async (req, res) => {
     return res.status(201).json({
       message: "Sale recorded successfully and budget updated",
       sale: newSale,
-      remaining_quantity: product.quantity, // Qolgan miqdorni qaytarish
+      remaining_quantity:
+        location === "store" ? storeProduct.quantity : product.quantity,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
