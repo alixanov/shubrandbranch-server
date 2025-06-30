@@ -3,7 +3,6 @@ const Sale = require("../models/Sale");
 const Store = require("../models/Store");
 const Product = require("../models/Product");
 
-// 1. Yangi qarzdor yaratish yoki mavjud mijozga mahsulot qo'shish
 exports.createDebtor = async (req, res) => {
   try {
     const { name, phone, due_date, currency = "sum", products = [] } = req.body;
@@ -15,22 +14,32 @@ exports.createDebtor = async (req, res) => {
       !Array.isArray(products) ||
       products.length === 0
     ) {
-      return res
-        .status(400)
-        .json({ message: "Mijoz ma'lumotlari yoki mahsulotlar to‘liq emas" });
+      return res.status(400).json({ message: "Ma'lumotlar to‘liq emas" });
     }
 
     let total_debt = 0;
 
+    // Har bir mahsulotni tekshiramiz
     for (const [index, product] of products.entries()) {
-      // Kutilayotgan qiymatlar mavjudmi va to‘g‘rimi
+      const {
+        product_id,
+        product_name,
+        sell_price,
+        currency: prodCurrency,
+        product_quantity,
+        quantity,
+      } = product;
+
+      // quantity yoki product_quantity dan birini olish
+      const final_quantity = product_quantity ?? quantity;
+
       if (
-        !product.product_id ||
-        !product.product_name ||
-        product.sell_price == null ||
-        isNaN(Number(product.sell_price)) ||
-        product.product_quantity == null ||
-        isNaN(Number(product.product_quantity))
+        !product_id ||
+        !product_name ||
+        sell_price == null ||
+        isNaN(Number(sell_price)) ||
+        final_quantity == null ||
+        isNaN(Number(final_quantity))
       ) {
         return res.status(400).json({
           message: `Mahsulotdagi qiymatlar to‘liq emas (index: ${index})`,
@@ -38,14 +47,15 @@ exports.createDebtor = async (req, res) => {
         });
       }
 
-      // Valyutani to‘ldirish (agar frontenddan kelmasa)
-      product.currency = product.currency || currency;
+      // Backend uchun product_quantity ni to‘ldirish
+      product.product_quantity = Number(final_quantity);
+      product.currency = prodCurrency || currency;
 
-      // Jami qarzni hisoblash
-      total_debt +=
-        Number(product.sell_price) * Number(product.product_quantity);
+      // Umumiy qarzni hisoblash
+      total_debt += Number(sell_price) * Number(final_quantity);
     }
 
+    // Yangi qarzdor obyektini yaratamiz
     const newDebtor = new Debtor({
       name,
       phone,
@@ -56,18 +66,12 @@ exports.createDebtor = async (req, res) => {
     });
 
     await newDebtor.save();
-
-    return res
-      .status(201)
-      .json({ message: "Qarzdor saqlandi", debtor: newDebtor });
+    res.status(201).json(newDebtor);
   } catch (error) {
-    console.error("createDebtor xatolik:", error.message);
-    return res
-      .status(500)
-      .json({ message: "Serverda xatolik", error: error.message });
+    console.error(error);
+    res.status(500).json({ message: "Serverda xatolik: " + error.message });
   }
 };
-
 
 
 exports.editDebtor = async (req, res) => {
