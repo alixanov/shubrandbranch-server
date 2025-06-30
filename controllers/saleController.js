@@ -10,9 +10,9 @@ exports.recordSale = async (req, res) => {
       product_id,
       product_name,
       sell_price,
+      buy_price, // ✅ frontenddan kelgan, konvertatsiyalangan qiymat
       quantity,
       currency,
-      product_quantity,
       total_price,
       total_price_sum,
       payment_method,
@@ -22,27 +22,21 @@ exports.recordSale = async (req, res) => {
     } = req.body;
 
     if (payment_method === "qarz") {
-      // Qarz uchun Debtor yaratish
       const newDebtor = new Debtor({
         name: debtor_name,
         phone: debtor_phone,
         debt_amount: total_price,
         due_date: debt_due_date,
-        product_quantity: product_quantity,
+        product_quantity: quantity,
       });
       await newDebtor.save();
-      return res
-        .status(201)
-        .json({ message: "Debtor recorded successfully", debtor: newDebtor });
+      return res.status(201).json({
+        message: "Debtor recorded successfully",
+        debtor: newDebtor,
+      });
     }
 
-    // Mahsulotni olish va foydani hisoblash
-    const product = await Product.findById(product_id);
-    if (!product) {
-      return res.status(404).json({ message: "Mahsulot topilmadi" });
-    }
-
-    const totalProfit = (sell_price - product.purchase_price) * quantity;
+    const totalProfit = (sell_price - buy_price) * quantity;
     if (isNaN(totalProfit)) {
       return res.status(400).json({ message: "Noto'g'ri foyda qiymati" });
     }
@@ -51,7 +45,7 @@ exports.recordSale = async (req, res) => {
       product_id,
       product_name,
       sell_price,
-      buy_price: product.purchase_price,
+      buy_price, // ✅ TO‘G‘RI
       quantity,
       total_price,
       payment_method,
@@ -61,7 +55,9 @@ exports.recordSale = async (req, res) => {
       debtor_phone: null,
       debt_due_date: null,
     });
+
     await newSale.save();
+
     let budget = await Budget.findOne();
     if (!budget) {
       budget = new Budget({ totalBudget: 0 });
@@ -69,7 +65,7 @@ exports.recordSale = async (req, res) => {
     budget.totalBudget += totalProfit;
     await budget.save();
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Sale recorded successfully and budget updated",
       sale: newSale,
     });
@@ -77,6 +73,7 @@ exports.recordSale = async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 };
+
 
 // Barcha sotuv tarixini olish
 exports.getSalesHistory = async (req, res) => {
