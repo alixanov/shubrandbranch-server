@@ -10,23 +10,30 @@ exports.createDebtor = async (req, res) => {
 
     let total_debt = 0;
 
-    // 2. Har bir mahsulotni tekshir va currency biriktir
+    // Har bir mahsulotni tekshiramiz
     for (const product of products) {
       if (
         !product.product_id ||
         !product.product_name ||
-        !product.sell_price ||
-        !product.product_quantity
+        product.sell_price == null ||
+        isNaN(product.sell_price) ||
+        product.product_quantity == null ||
+        isNaN(product.product_quantity)
       ) {
         return res
           .status(400)
           .json({ message: "Mahsulotdagi qiymatlar to‘liq emas" });
       }
+
+      // Valyuta biriktiramiz
       product.currency = product.currency || currency;
-      total_debt += product.sell_price * product.product_quantity;
+
+      // Jami qarzni hisoblaymiz
+      total_debt +=
+        Number(product.sell_price) * Number(product.product_quantity);
     }
 
-    // 3. Yangi qarzdor obyektini yarat
+    // Yangi qarzdorni yaratamiz
     const newDebtor = new Debtor({
       name,
       phone,
@@ -43,6 +50,7 @@ exports.createDebtor = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 exports.editDebtor = async (req, res) => {
   try {
