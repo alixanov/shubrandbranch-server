@@ -1,7 +1,8 @@
 const Sale = require("../models/Sale");
 const Debtor = require("../models/Debtor");
 const Budget = require("../models/Budget");
-const Product = require("../models/Product"); // Product modelini import qilish
+const Product = require("../models/Product");
+const Store = require("../models/Store"); // ✅ Store modelini import qilish
 
 // Sotuvni yaratish yoki yangilash
 exports.recordSale = async (req, res) => {
@@ -19,25 +20,37 @@ exports.recordSale = async (req, res) => {
       debtor_name,
       debtor_phone,
       debt_due_date,
+      location="store" ,// ✅ Qaysi joydan sotilayotganini aniqlash uchun
     } = req.body;
 
-    // 🔐 Doimiy tarzda dokondan sotiladi
-    const location = "store";
+    // Mahsulotni topish va miqdorni tekshirish
+    let availableQuantity = 0;
+    let product = null;
+    let storeProduct = null;
 
-    // Mahsulotni dokondan topish
-    const storeProduct = await Store.findOne({ product_id });
-    if (!storeProduct) {
-      return res.status(404).json({ message: "Mahsulot dokonda topilmadi" });
+    if (location === "store" || location === "dokon") {
+      // ✅ Dokondan sotish
+      storeProduct = await Store.findOne({ product_id });
+      if (!storeProduct) {
+        return res.status(404).json({ message: "Mahsulot dokonda topilmadi" });
+      }
+      availableQuantity = storeProduct.quantity;
+      product = await Product.findById(product_id);
+    } else {
+      // ✅ Ombordan sotish
+      product = await Product.findById(product_id);
+      if (!product) {
+        return res.status(404).json({ message: "Mahsulot topilmadi" });
+      }
+      availableQuantity = product.quantity;
     }
 
-    const product = await Product.findById(product_id);
-    if (!product) {
-      return res.status(404).json({ message: "Mahsulot topilmadi" });
-    }
-
-    if (storeProduct.quantity < quantity) {
+    // Yetarli miqdor borligini tekshirish
+    if (availableQuantity < quantity) {
       return res.status(400).json({
-        message: `Dokonda yetarli mahsulot yo'q. Mavjud: ${storeProduct.quantity}, talab: ${quantity}`,
+        message: `${
+          location === "store" ? "Dokonda" : "Omborda"
+        } yetarli mahsulot yo'q. Mavjud: ${availableQuantity}, talab: ${quantity}`,
       });
     }
 
@@ -47,49 +60,56 @@ exports.recordSale = async (req, res) => {
         phone: debtor_phone,
         debt_amount: total_price,
         due_date: debt_due_date,
-        currency,
-        products: [
-          {
-            product_id,
-            product_name,
-            product_quantity: quantity,
-            sell_price,
-            due_date: debt_due_date,
-            currency,
-          },
-        ],
+        product_quantity: quantity,
       });
       await newDebtor.save();
 
-      storeProduct.quantity -= quantity;
-      await storeProduct.save();
+      // ✅ Qarzdorlik holatida ham mahsulot ayrilishi kerak
+      if (location === "store" || location === "dokon") {
+        storeProduct.quantity -= quantity;
+        await storeProduct.save();
+      } else {
+        product.quantity -= quantity;
+        await product.save();
+      }
 
       return res.status(201).json({
-        message: "Qarzga sotildi, qarzdor saqlandi",
+        message: "Debtor recorded successfully",
         debtor: newDebtor,
       });
     }
 
     const totalProfit = (sell_price - buy_price) * quantity;
+    if (isNaN(totalProfit)) {
+      return res.status(400).json({ message: "Noto'g'ri foyda qiymati" });
+    }
+
     const newSale = new Sale({
       product_id,
       product_name,
       sell_price,
       buy_price,
-      currency,
       quantity,
       total_price,
-      total_price_sum,
       payment_method,
+      total_price_sum,
       debtor_name: null,
+      currency,
       debtor_phone: null,
       debt_due_date: null,
+      location: location || "warehouse", // ✅ Qaysi joydan sotilganini saqlash
     });
 
     await newSale.save();
 
-    storeProduct.quantity -= quantity;
-    await storeProduct.save();
+    // ✅ Mahsulot miqdorini tegishli joydan ayirish
+    if (location === "store" || location === "dokon") {
+      storeProduct.quantity -= quantity;
+      await storeProduct.save();
+    } else {
+      product.quantity -= quantity;
+      await product.save();
+    }
 
     let budget = await Budget.findOne();
     if (!budget) {
@@ -98,17 +118,16 @@ exports.recordSale = async (req, res) => {
     budget.totalBudget += totalProfit;
     await budget.save();
 
-    res.status(201).json({
-      message: "Dokondan sotildi",
+    return res.status(201).json({
+      message: "Sale recorded successfully and budget updated",
       sale: newSale,
-      remaining_quantity: storeProduct.quantity,
+      remaining_quantity:
+        location === "store" ? storeProduct.quantity : product.quantity,
     });
   } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ message: "Xatolik yuz berdi" });
+    res.status(400).json({ message: error.message });
   }
 };
-
 
 // Barcha sotuv tarixini olish
 exports.getSalesHistory = async (req, res) => {
@@ -267,7 +286,7 @@ exports.getLast12MonthsSales = async (req, res) => {
         (sale) => sale._id.year === year && sale._id.month === month
       );
 
-      // Barcha mahsulotlarni tahlil qilib, mavjud bo‘lmaganlarini qo‘shish
+      // Barcha mahsulotlarni tahlil qilib, mavjud bo'lmaganlarini qo'shish
       const productMap = new Map();
 
       allProducts.forEach((product) => {
@@ -298,18 +317,50 @@ exports.getLast12MonthsSales = async (req, res) => {
   }
 };
 
-// Sotuvni o‘chirish
+
 exports.deleteSale = async (req, res) => {
   try {
     const { id } = req.params;
+    const sale = await Sale.findById(id);
+    if (!sale) return res.status(404).json({ message: "Sotuv topilmadi" });
 
-    const sale = await Sale.findByIdAndDelete(id);
-    if (!sale) {
-      return res.status(404).json({ message: "Sotuv topilmadi" });
+    const {
+      product_id,
+      quantity,
+      sell_price,
+      buy_price,
+      location = "store",
+    } = sale;
+
+    const profitToRemove = (sell_price - buy_price) * quantity;
+
+    // Mahsulotni qayta qo‘shish
+    if (location === "store" || location === "dokon") {
+      const storeProduct = await Store.findOne({ product_id });
+      if (storeProduct) {
+        storeProduct.quantity += quantity;
+        await storeProduct.save();
+      }
+    } else {
+      const product = await Product.findById(product_id);
+      if (product) {
+        product.quantity += quantity;
+        await product.save();
+      }
     }
 
-    res.status(200).json({ message: "Sotuv muvaffaqiyatli o‘chirildi" });
+    // Byudjetni kamaytirish
+    const budget = await Budget.findOne();
+    if (budget) {
+      budget.totalBudget -= profitToRemove;
+      await budget.save();
+    }
+
+    await sale.deleteOne();
+
+    res.status(200).json({ message: "Sotuv o‘chirildi va miqdor tiklandi" });
   } catch (error) {
-    res.status(500).json({ message: "Server xatosi", error: error.message });
+    console.log(error.message);
+    res.status(500).json({ message: "Serverda xatolik" });
   }
 };
