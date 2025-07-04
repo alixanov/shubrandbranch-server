@@ -253,5 +253,10 @@ router.delete(
   authMiddleware.verifyToken,
   masterController.deleteMasterById
 );
+router.delete(
+  "/masters/:master_id/cars/:car_id",
+  masterController.deleteCarFromMaster
+);
+
 
 module.exports = router;
