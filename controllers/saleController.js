@@ -20,7 +20,7 @@ exports.recordSale = async (req, res) => {
       debtor_name,
       debtor_phone,
       debt_due_date,
-      location="store" ,// ✅ Qaysi joydan sotilayotganini aniqlash uchun
+      location = "store", // ✅ Qaysi joydan sotilayotganini aniqlash uchun
     } = req.body;
 
     // Mahsulotni topish va miqdorni tekshirish
@@ -316,7 +316,6 @@ exports.getLast12MonthsSales = async (req, res) => {
     res.status(400).json({ message: error?.message || "Xatolik yuz berdi" });
   }
 };
-
 
 exports.deleteSale = async (req, res) => {
   try {

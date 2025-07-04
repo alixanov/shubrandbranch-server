@@ -17,7 +17,7 @@ const saleSchema = new mongoose.Schema(
     },
     quantity: { type: Number, required: true },
     total_price: { type: Number, required: true },
-    total_price_sum: { type: Number, },
+    total_price_sum: { type: Number },
     payment_method: {
       type: String,
       enum: ["naqd", "plastik", "qarz"],
