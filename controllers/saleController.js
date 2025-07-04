@@ -51,7 +51,6 @@ exports.recordSale = async (req, res) => {
       });
     }
 
-    // 💳 Agar qarz bo‘lsa
     if (payment_method === "qarz") {
       const newDebtor = await Debtor.create({
         name: debtor_name,
@@ -71,20 +70,30 @@ exports.recordSale = async (req, res) => {
         ],
       });
 
-      // ❗ Mahsulot miqdorini kamaytirish
-      if (location === "store" || location === "dokon") {
-        storeProduct.quantity -= quantity;
-        await storeProduct.save();
-      } else {
-        product.quantity -= quantity;
-        await product.save();
+      // ✅ Majburiy tarzda dokondan kamaytirish
+      const storeProduct = await Store.findOne({ product_id });
+      if (!storeProduct) {
+        return res.status(404).json({ message: "Dokonda mahsulot topilmadi" });
       }
+
+      // ❗ Miqdorni kamaytirish
+      if (storeProduct.quantity < quantity) {
+        return res
+          .status(400)
+          .json({
+            message: `Dokonda yetarli mahsulot yo'q. Mavjud: ${storeProduct.quantity}`,
+          });
+      }
+
+      storeProduct.quantity -= quantity;
+      await storeProduct.save();
 
       return res.status(201).json({
         message: "Qarzga sotuv bajarildi",
         debtor: newDebtor,
       });
     }
+    
 
     // 💵 Naqd yoki karta to‘lovlar
     const totalProfit = (sell_price - buy_price) * quantity;
