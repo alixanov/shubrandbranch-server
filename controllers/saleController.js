@@ -10,9 +10,9 @@ exports.recordSale = async (req, res) => {
       product_id,
       product_name,
       sell_price,
+      buy_price,
       quantity,
       currency,
-      product_quantity,
       total_price,
       total_price_sum,
       payment_method,
@@ -21,76 +21,76 @@ exports.recordSale = async (req, res) => {
       debt_due_date,
     } = req.body;
 
-    // Mahsulotni olish va foydani hisoblash
+    // 🔐 Doimiy tarzda dokondan sotiladi
+    const location = "store";
+
+    // Mahsulotni dokondan topish
+    const storeProduct = await Store.findOne({ product_id });
+    if (!storeProduct) {
+      return res.status(404).json({ message: "Mahsulot dokonda topilmadi" });
+    }
+
     const product = await Product.findById(product_id);
     if (!product) {
       return res.status(404).json({ message: "Mahsulot topilmadi" });
     }
 
-    const totalProfit = (sell_price - product.purchase_price) * quantity;
-    if (isNaN(totalProfit)) {
-      return res.status(400).json({ message: "Noto'g'ri foyda qiymati" });
+    if (storeProduct.quantity < quantity) {
+      return res.status(400).json({
+        message: `Dokonda yetarli mahsulot yo'q. Mavjud: ${storeProduct.quantity}, talab: ${quantity}`,
+      });
     }
 
-    // Agar to‘lov usuli qarz bo‘lsa
     if (payment_method === "qarz") {
-      const productObj = {
-        product_id,
-        product_name,
-        product_quantity,
-        sell_price,
-        currency,
-        due_date: debt_due_date,
-      };
-
-      const existingDebtor = await Debtor.findOne({
+      const newDebtor = new Debtor({
         name: debtor_name,
         phone: debtor_phone,
+        debt_amount: total_price,
+        due_date: debt_due_date,
+        currency,
+        products: [
+          {
+            product_id,
+            product_name,
+            product_quantity: quantity,
+            sell_price,
+            due_date: debt_due_date,
+            currency,
+          },
+        ],
       });
+      await newDebtor.save();
 
-      if (existingDebtor) {
-        existingDebtor.products.push(productObj);
-        existingDebtor.debt_amount += total_price;
-        await existingDebtor.save();
-        return res.status(200).json({
-          message: "Mavjud mijozga mahsulot qo‘shildi",
-          debtor: existingDebtor,
-        });
-      } else {
-        const newDebtor = new Debtor({
-          name: debtor_name,
-          phone: debtor_phone,
-          due_date: debt_due_date,
-          debt_amount: total_price,
-          currency,
-          products: [productObj],
-        });
-        await newDebtor.save();
-        return res.status(201).json({
-          message: "Yangi qarzdor yaratildi",
-          debtor: newDebtor,
-        });
-      }
+      storeProduct.quantity -= quantity;
+      await storeProduct.save();
+
+      return res.status(201).json({
+        message: "Qarzga sotildi, qarzdor saqlandi",
+        debtor: newDebtor,
+      });
     }
 
-    // To‘lov naxt yoki karta bo‘lsa – Sale yaratiladi
+    const totalProfit = (sell_price - buy_price) * quantity;
     const newSale = new Sale({
       product_id,
       product_name,
       sell_price,
-      buy_price: product.purchase_price,
+      buy_price,
+      currency,
       quantity,
       total_price,
-      payment_method,
       total_price_sum,
+      payment_method,
       debtor_name: null,
       debtor_phone: null,
       debt_due_date: null,
-      currency,
     });
+
     await newSale.save();
 
-    // Budjetni yangilash
+    storeProduct.quantity -= quantity;
+    await storeProduct.save();
+
     let budget = await Budget.findOne();
     if (!budget) {
       budget = new Budget({ totalBudget: 0 });
@@ -99,13 +99,16 @@ exports.recordSale = async (req, res) => {
     await budget.save();
 
     res.status(201).json({
-      message: "Sotuv saqlandi va budjet yangilandi",
+      message: "Dokondan sotildi",
       sale: newSale,
+      remaining_quantity: storeProduct.quantity,
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error(error.message);
+    res.status(500).json({ message: "Xatolik yuz berdi" });
   }
 };
+
 
 // Barcha sotuv tarixini olish
 exports.getSalesHistory = async (req, res) => {
