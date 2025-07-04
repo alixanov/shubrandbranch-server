@@ -59,28 +59,21 @@ exports.recordSale = async (req, res) => {
         !debtor_name ||
         !debtor_phone ||
         !debt_due_date ||
-        !product_id ||
-        !product_name ||
-        !quantity
+        !Array.isArray(products) ||
+        products.length === 0 ||
+        !products[0].product_id ||
+        !products[0].product_name ||
+        !products[0].product_quantity
       ) {
         return res
           .status(400)
           .json({ message: "Kerakli maydonlar to'liq emas" });
       }
 
-      const productInfo = {
-        product_id,
-        product_name,
-        product_quantity: quantity,
-        sell_price,
-        due_date: debt_due_date,
-        currency,
-      };
-
       let debtor = await Debtor.findOne({ phone: debtor_phone });
 
       if (debtor) {
-        debtor.products.push(productInfo);
+        debtor.products.push(...products);
         debtor.debt_amount += total_price;
         await debtor.save();
       } else {
@@ -90,21 +83,22 @@ exports.recordSale = async (req, res) => {
           debt_amount: total_price,
           due_date: debt_due_date,
           currency,
-          products: [productInfo],
+          products,
         });
         await debtor.save();
       }
 
+      // mahsulot miqdorini kamaytirish
       if (location === "store" || location === "dokon") {
-        storeProduct.quantity -= quantity;
+        storeProduct.quantity -= products[0].product_quantity;
         await storeProduct.save();
       } else {
-        product.quantity -= quantity;
+        product.quantity -= products[0].product_quantity;
         await product.save();
       }
 
       return res.status(201).json({
-        message: "Qarzga sotuv bajarildi",
+        message: "Qarzga sotuv muvaffaqiyatli bajarildi",
         debtor,
       });
     }
