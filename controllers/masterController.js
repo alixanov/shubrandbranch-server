@@ -5,7 +5,7 @@ const Rate = require("../models/UsdRate");
 exports.createMaster = async (req, res) => {
   try {
     const master = await Master.create(req.body);
-    return res.json({ result: master }); // 🔁 json key aniqligi uchun
+    return res.json({ result: master });
   } catch (err) {
     console.log(err.message);
     return res.status(500).json({ message: "Serverda xatolik" });
@@ -70,10 +70,10 @@ exports.createPaymentToMaster = async (req, res) => {
     const car = master.cars.id(car_id);
     if (!car) return res.status(404).json({ message: "Mashina topilmadi" });
 
-    // 1. To'lovni car.payment_log ga qo‘shamiz
+    // To‘lovni qo‘shish
     car.payment_log.push({ amount, currency, payment_method });
 
-    // 2. Jami car sotuv va to‘lovni hisoblaymiz
+    // Hisoblash
     const totalSales = car.sales.reduce((sum, sale) => {
       const converted =
         sale.currency === "usd" ? sale.total_price * usdRate : sale.total_price;
@@ -85,7 +85,7 @@ exports.createPaymentToMaster = async (req, res) => {
       return sum + converted;
     }, 0);
 
-    // 3. Agar to‘lov yetarli bo‘lsa, sotuvlarni Sale ga ko‘chiramiz
+    // To‘lov yetarli bo‘lsa – sotuvlarni Sale collection'ga o‘tkazish
     if (Math.round(totalPayments) >= Math.round(totalSales)) {
       const salesToSave = car.sales.map((sale) => ({
         ...sale.toObject(),
@@ -115,19 +115,22 @@ exports.deleteMasterById = async (req, res) => {
     return res.json({ message: "Usta o'chirildi" });
   } catch (err) {
     console.log(err.message);
-    return response.error(res, "Serverda xatolik", 500);
+    return res.status(500).json({ message: "Serverda xatolik" });
   }
 };
 
 exports.deleteCarFromMaster = async (req, res) => {
   try {
     const { master_id, car_id } = req.params;
+
     const master = await Master.findById(master_id);
     if (!master) {
       return res.status(404).json({ message: "Usta topilmadi" });
     }
+
     master.cars = master.cars.filter((car) => car._id.toString() !== car_id);
     await master.save();
+
     return res.json({ message: "Mashina o‘chirildi", master });
   } catch (err) {
     console.log(err.message);
