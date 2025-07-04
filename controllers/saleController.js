@@ -55,14 +55,45 @@ exports.recordSale = async (req, res) => {
     }
 
     if (payment_method === "qarz") {
-      const newDebtor = new Debtor({
-        name: debtor_name,
-        phone: debtor_phone,
-        debt_amount: total_price,
-        due_date: debt_due_date,
+      if (
+        !debtor_name ||
+        !debtor_phone ||
+        !debt_due_date ||
+        !product_id ||
+        !product_name ||
+        !quantity
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Kerakli maydonlar to'liq emas" });
+      }
+
+      const productInfo = {
+        product_id,
+        product_name,
         product_quantity: quantity,
-      });
-      await newDebtor.save();
+        sell_price,
+        due_date: debt_due_date,
+        currency,
+      };
+
+      let debtor = await Debtor.findOne({ phone: debtor_phone });
+
+      if (debtor) {
+        debtor.products.push(productInfo);
+        debtor.debt_amount += total_price;
+        await debtor.save();
+      } else {
+        debtor = new Debtor({
+          name: debtor_name,
+          phone: debtor_phone,
+          debt_amount: total_price,
+          due_date: debt_due_date,
+          currency,
+          products: [productInfo],
+        });
+        await debtor.save();
+      }
 
       if (location === "store" || location === "dokon") {
         storeProduct.quantity -= quantity;
@@ -73,10 +104,11 @@ exports.recordSale = async (req, res) => {
       }
 
       return res.status(201).json({
-        message: "Debtor recorded successfully",
-        debtor: newDebtor,
+        message: "Qarzga sotuv bajarildi",
+        debtor,
       });
     }
+    
     
 
     const totalProfit = (sell_price - buy_price) * quantity;
