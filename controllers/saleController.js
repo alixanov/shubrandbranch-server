@@ -20,16 +20,14 @@ exports.recordSale = async (req, res) => {
       debtor_name,
       debtor_phone,
       debt_due_date,
-      location="store" ,// ✅ Qaysi joydan sotilayotganini aniqlash uchun
+      location = "store",
     } = req.body;
 
-    // Mahsulotni topish va miqdorni tekshirish
     let availableQuantity = 0;
     let product = null;
     let storeProduct = null;
 
     if (location === "store" || location === "dokon") {
-      // ✅ Dokondan sotish
       storeProduct = await Store.findOne({ product_id });
       if (!storeProduct) {
         return res.status(404).json({ message: "Mahsulot dokonda topilmadi" });
@@ -37,15 +35,14 @@ exports.recordSale = async (req, res) => {
       availableQuantity = storeProduct.quantity;
       product = await Product.findById(product_id);
     } else {
-      // ✅ Ombordan sotish
       product = await Product.findById(product_id);
       if (!product) {
-        return res.status(404).json({ message: "Mahsulot topilmadi" });
+        return res.status(404).json({ message: "Mahsulot omborda topilmadi" });
       }
       availableQuantity = product.quantity;
     }
 
-    // Yetarli miqdor borligini tekshirish
+    // ✅ Miqdor yetarliligini tekshirish
     if (availableQuantity < quantity) {
       return res.status(400).json({
         message: `${
@@ -54,13 +51,14 @@ exports.recordSale = async (req, res) => {
       });
     }
 
+    // 💳 Agar qarz bo‘lsa
     if (payment_method === "qarz") {
-      const debtor = new Debtor({
+      const newDebtor = await Debtor.create({
         name: debtor_name,
         phone: debtor_phone,
         debt_amount: total_price,
         due_date: debt_due_date,
-        currency, // qo‘shib qo‘yamiz
+        currency,
         products: [
           {
             product_id,
@@ -71,12 +69,9 @@ exports.recordSale = async (req, res) => {
             currency,
           },
         ],
-        payment_log: [], // boshlang‘ich bo‘sh bo‘ladi
       });
 
-      await debtor.save();
-
-      // ✅ Mahsulotni kamaytirish
+      // ❗ Mahsulot miqdorini kamaytirish
       if (location === "store" || location === "dokon") {
         storeProduct.quantity -= quantity;
         await storeProduct.save();
@@ -87,17 +82,17 @@ exports.recordSale = async (req, res) => {
 
       return res.status(201).json({
         message: "Qarzga sotuv bajarildi",
-        debtor,
+        debtor: newDebtor,
       });
     }
-    
 
+    // 💵 Naqd yoki karta to‘lovlar
     const totalProfit = (sell_price - buy_price) * quantity;
     if (isNaN(totalProfit)) {
-      return res.status(400).json({ message: "Noto'g'ri foyda qiymati" });
+      return res.status(400).json({ message: "Noto'g'ri foyda hisoblandi" });
     }
 
-    const newSale = new Sale({
+    const newSale = await Sale.create({
       product_id,
       product_name,
       sell_price,
@@ -106,16 +101,14 @@ exports.recordSale = async (req, res) => {
       total_price,
       payment_method,
       total_price_sum,
-      debtor_name: null,
       currency,
+      debtor_name: null,
       debtor_phone: null,
       debt_due_date: null,
-      location: location || "warehouse", // ✅ Qaysi joydan sotilganini saqlash
+      location,
     });
 
-    await newSale.save();
-
-    // ✅ Mahsulot miqdorini tegishli joydan ayirish
+    // ❗ Mahsulot miqdorini kamaytirish
     if (location === "store" || location === "dokon") {
       storeProduct.quantity -= quantity;
       await storeProduct.save();
@@ -124,23 +117,24 @@ exports.recordSale = async (req, res) => {
       await product.save();
     }
 
+    // ✅ Byudjetga foyda qo‘shish
     let budget = await Budget.findOne();
     if (!budget) {
-      budget = new Budget({ totalBudget: 0 });
+      budget = await Budget.create({ totalBudget: 0 });
     }
     budget.totalBudget += totalProfit;
     await budget.save();
 
     return res.status(201).json({
-      message: "Sale recorded successfully and budget updated",
+      message: "Sotuv bajarildi",
       sale: newSale,
-      remaining_quantity:
-        location === "store" ? storeProduct.quantity : product.quantity,
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.log(error.message);
+    return res.status(500).json({ message: "Server xatoligi" });
   }
 };
+
 
 // Barcha sotuv tarixini olish
 exports.getSalesHistory = async (req, res) => {
