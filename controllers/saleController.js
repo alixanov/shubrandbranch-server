@@ -63,7 +63,7 @@ exports.recordSale = async (req, res) => {
         products.length === 0 ||
         !products[0].product_id ||
         !products[0].product_name ||
-        !products[0].product_quantity
+        !products[0].quantity
       ) {
         return res
           .status(400)
