@@ -55,16 +55,28 @@ exports.recordSale = async (req, res) => {
     }
 
     if (payment_method === "qarz") {
-      const newDebtor = new Debtor({
+      const debtor = new Debtor({
         name: debtor_name,
         phone: debtor_phone,
         debt_amount: total_price,
         due_date: debt_due_date,
-        product_quantity: quantity,
+        currency, // qo‘shib qo‘yamiz
+        products: [
+          {
+            product_id,
+            product_name,
+            product_quantity: quantity,
+            sell_price,
+            due_date: debt_due_date,
+            currency,
+          },
+        ],
+        payment_log: [], // boshlang‘ich bo‘sh bo‘ladi
       });
-      await newDebtor.save();
 
-      // ✅ Qarzdorlik holatida ham mahsulot ayrilishi kerak
+      await debtor.save();
+
+      // ✅ Mahsulotni kamaytirish
       if (location === "store" || location === "dokon") {
         storeProduct.quantity -= quantity;
         await storeProduct.save();
@@ -74,10 +86,11 @@ exports.recordSale = async (req, res) => {
       }
 
       return res.status(201).json({
-        message: "Debtor recorded successfully",
-        debtor: newDebtor,
+        message: "Qarzga sotuv bajarildi",
+        debtor,
       });
     }
+    
 
     const totalProfit = (sell_price - buy_price) * quantity;
     if (isNaN(totalProfit)) {
