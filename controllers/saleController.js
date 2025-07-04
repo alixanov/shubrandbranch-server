@@ -64,7 +64,6 @@ exports.recordSale = async (req, res) => {
       });
       await newDebtor.save();
 
-      // ✅ Qarzdorlik holatida ham mahsulot ayrilishi kerak
       if (location === "store" || location === "dokon") {
         storeProduct.quantity -= quantity;
         await storeProduct.save();
@@ -78,6 +77,7 @@ exports.recordSale = async (req, res) => {
         debtor: newDebtor,
       });
     }
+    
 
     const totalProfit = (sell_price - buy_price) * quantity;
     if (isNaN(totalProfit)) {
