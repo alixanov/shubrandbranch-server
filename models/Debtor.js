@@ -8,12 +8,12 @@ const debtorSchema = new mongoose.Schema(
     phone: { type: String, required: true },
     debt_amount: { type: Number, required: true },
     due_date: { type: Date, required: true },
-    currency: { type: String, enum: ["sum", "usd"], required: true },
+    currency: { type: String, enum: ["sum", "usd"],  },
     payment_log: {
       type: [
         {
           amount: { type: Number, required: true },
-          currency: { type: String, required: true, default: "usd" },
+          currency: { type: String,  default: "usd" },
           date: { type: Date, default: Date.now },
         }
       ],
