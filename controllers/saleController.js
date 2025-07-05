@@ -60,7 +60,7 @@ exports.recordSale = async (req, res) => {
         phone: debtor_phone,
         debt_amount: total_price,
         due_date: debt_due_date,
-        product_quantity: quantity,
+        quantity: quantity,
       });
       await newDebtor.save();
 

@@ -3,6 +3,65 @@ const Sale = require("../models/Sale");
 const Store = require("../models/Store");
 const Product = require("../models/Product");
 
+exports.createDebtor = async (req, res) => {
+  try {
+    const { name, phone, due_date, currency, debt_amount, products } = req.body;
+
+    // 🔒 1. Validatsiya
+    if (
+      !name ||
+      !phone ||
+      !due_date ||
+      !currency ||
+      !debt_amount ||
+      !products?.length
+    ) {
+      return res.status(400).json({ message: "Kerakli maydonlar to'liq emas" });
+    }
+
+    // 🔁 2. Har bir mahsulot uchun mavjudlikni tekshirish va sonni kamaytirish
+    for (const item of products) {
+      const storeItem = await Store.findOne({ product_id: item.product_id });
+
+      if (!storeItem) {
+        return res
+          .status(404)
+          .json({ message: `${item.product_name} dokonda topilmadi` });
+      }
+
+      if (storeItem.quantity < item.quantity) {
+        return res.status(400).json({
+          message: `${item.product_name} mahsulotidan dokonda yetarli miqdor yo‘q! Mavjud: ${storeItem.quantity}, So‘ralgan: ${item.quantity}`,
+        });
+      }
+
+      // ➖ Mahsulot miqdorini kamaytirish
+      storeItem.quantity -= item.quantity;
+      await storeItem.save(); // ⚠️ `updated_at` avtomatik yangilanadi
+    }
+
+    // 📝 3. Qarzdorlikni saqlash
+    const newDebtor = new Debtor({
+      name,
+      phone,
+      due_date,
+      currency,
+      debt_amount,
+      products,
+    });
+
+    await newDebtor.save();
+
+    return res.status(201).json({
+      message: "Qarzdorlik muvaffaqiyatli yaratildi",
+      debtor: newDebtor,
+    });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ message: "Serverda xatolik" });
+  }
+};
+
 exports.createPayment = async (req, res) => {
   try {
     const { id, amount, currency, rate, payment_method = "naqd" } = req.body;
@@ -30,17 +89,17 @@ exports.createPayment = async (req, res) => {
 
         const storeItem = await Store.findOne({ product_id: item.product_id });
 
-        if (!storeItem || storeItem.quantity < item.product_quantity) {
+        if (!storeItem || storeItem.quantity < item.quantity) {
           return res.status(400).json({
             message: `Omborda ${item.product_name} uchun yetarli mahsulot yo'q`,
           });
         }
 
         // 📉 Ombordan mahsulotni ayiramiz
-        storeItem.quantity -= item.product_quantity;
+        storeItem.quantity -= item.quantity;
         await storeItem.save();
 
-        const total_price = item.sell_price * item.product_quantity;
+        const total_price = item.sell_price * item.quantity;
         const total_price_sum =
           currency === "usd" ? total_price : total_price * rate;
 
@@ -50,7 +109,7 @@ exports.createPayment = async (req, res) => {
           sell_price: item.sell_price,
           buy_price: product.purchase_price,
           currency: "usd",
-          quantity: item.product_quantity,
+          quantity: item.quantity,
           total_price,
           total_price_sum,
           payment_method,
@@ -121,8 +180,8 @@ exports.updateDebtor = async (req, res) => {
           product_name: p.product_name,
           sell_price: p.sell_price,
           buy_price: product.purchase_price,
-          quantity: p.product_quantity,
-          total_price: p.sell_price * p.product_quantity,
+          quantity: p.quantity,
+          total_price: p.sell_price * p.quantity,
           payment_method: "qarz",
           debtor_name: debtor.name,
           debtor_phone: debtor.phone,
@@ -203,10 +262,10 @@ exports.vazvratDebt = async (req, res) => {
 
     const item = debtor.products[prodIndex];
 
-    item.product_quantity -= numericQuantity;
+    item.quantity -= numericQuantity;
     debtor.debt_amount -= item.sell_price * numericQuantity;
 
-    if (item.product_quantity <= 0) {
+    if (item.quantity <= 0) {
       debtor.products.splice(prodIndex, 1);
     }
 
@@ -244,7 +303,7 @@ exports.createPayment = async (req, res) => {
         const product = await Product.findById(item.product_id);
         if (!product) continue;
 
-        const total_price = item.sell_price * item.product_quantity;
+        const total_price = item.sell_price * item.quantity;
         const total_price_sum =
           currency === "usd" ? total_price : total_price * rate;
 
@@ -254,7 +313,7 @@ exports.createPayment = async (req, res) => {
           sell_price: item.sell_price,
           buy_price: product.purchase_price,
           currency: "usd",
-          quantity: item.product_quantity,
+          quantity: item.quantity,
           total_price,
           total_price_sum,
           payment_method,

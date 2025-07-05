@@ -88,9 +88,9 @@ router.get(
 
 // ==== DEBTOR ROUTES ====
 router.post(
-  "/debtor",
+  "/debtors",
   authMiddleware.verifyToken,
-  debtorController.createPayment
+  debtorController.createDebtor
 );
 router.put(
   "/debtor/:id",
