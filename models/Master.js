@@ -24,7 +24,7 @@ const MasterSchema = new mongoose.Schema({
                             enum: ["sum", "usd"],
                             default: "sum",
                         },
-                        quantity: { type: Number, required: true, min: 1 },
+                        quantity: { type: Number, required: true, min: 0 },
                         total_price: { type: Number, required: true },
                         total_price_sum: { type: Number, },
                     }],

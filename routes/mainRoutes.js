@@ -99,7 +99,7 @@ router.put(
 );
 
 router.post(
-  "/debtors",
+  "/pay/debtor",
   authMiddleware.verifyToken,
   debtorController.createPayment
 );

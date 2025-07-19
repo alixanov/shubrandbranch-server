@@ -1,4 +1,6 @@
 const Product = require("../models/Product");
+const Store = require("../models/Store");
+const mongoose = require("mongoose");
 
 // Mahsulot yaratish
 exports.createProduct = async (req, res) => {
@@ -62,6 +64,10 @@ exports.updateProduct = async (req, res) => {
       req.params.id,
       req.body,
       { new: true }
+    );
+    await Store.findOneAndUpdate(
+      { product_id: new mongoose.Types.ObjectId(req.params.id) },
+      { quantity: req.bodystock }
     );
 
     if (!updatedProduct) {
