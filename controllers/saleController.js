@@ -20,16 +20,14 @@ exports.recordSale = async (req, res) => {
       debtor_name,
       debtor_phone,
       debt_due_date,
-      location="store" ,// ✅ Qaysi joydan sotilayotganini aniqlash uchun
+      location = "store",
     } = req.body;
 
-    // Mahsulotni topish va miqdorni tekshirish
     let availableQuantity = 0;
     let product = null;
     let storeProduct = null;
 
     if (location === "store" || location === "dokon") {
-      // ✅ Dokondan sotish
       storeProduct = await Store.findOne({ product_id });
       if (!storeProduct) {
         return res.status(404).json({ message: "Mahsulot dokonda topilmadi" });
@@ -37,7 +35,6 @@ exports.recordSale = async (req, res) => {
       availableQuantity = storeProduct.quantity;
       product = await Product.findById(product_id);
     } else {
-      // ✅ Ombordan sotish
       product = await Product.findById(product_id);
       if (!product) {
         return res.status(404).json({ message: "Mahsulot topilmadi" });
@@ -45,14 +42,13 @@ exports.recordSale = async (req, res) => {
       availableQuantity = product.quantity;
     }
 
-    // Yetarli miqdor borligini tekshirish
-    if (availableQuantity < quantity) {
-      return res.status(400).json({
-        message: `${
-          location === "store" ? "Dokonda" : "Omborda"
-        } yetarli mahsulot yo'q. Mavjud: ${availableQuantity}, talab: ${quantity}`,
-      });
-    }
+    // if (availableQuantity < quantity) {
+    //   return res.status(400).json({
+    //     message: `${
+    //       location === "store" ? "Dokonda" : "Omborda"
+    //     } yetarli mahsulot yo'q. Mavjud: ${availableQuantity}, talab: ${quantity}`,
+    //   });
+    // }
 
     if (payment_method === "qarz") {
       const newDebtor = new Debtor({
@@ -64,7 +60,6 @@ exports.recordSale = async (req, res) => {
       });
       await newDebtor.save();
 
-      // ✅ Qarzdorlik holatida ham mahsulot ayrilishi kerak
       if (location === "store" || location === "dokon") {
         storeProduct.quantity -= quantity;
         await storeProduct.save();
@@ -97,16 +92,12 @@ exports.recordSale = async (req, res) => {
       currency,
       debtor_phone: null,
       debt_due_date: null,
-      location: location || "warehouse", // ✅ Qaysi joydan sotilganini saqlash
+      location: location || "warehouse",
     });
 
     await newSale.save();
 
-    // ✅ Mahsulot miqdorini tegishli joydan ayirish
-    if (location === "store" || location === "dokon") {
-      storeProduct.quantity -= quantity;
-      await storeProduct.save();
-    } else {
+    if (location !== "store" && location !== "dokon") {
       product.quantity -= quantity;
       await product.save();
     }
@@ -316,7 +307,6 @@ exports.getLast12MonthsSales = async (req, res) => {
     res.status(400).json({ message: error?.message || "Xatolik yuz berdi" });
   }
 };
-
 
 exports.deleteSale = async (req, res) => {
   try {

@@ -65,10 +65,8 @@ exports.updateProduct = async (req, res) => {
       req.body,
       { new: true }
     );
-    await Store.findOneAndUpdate(
-      { product_id: new mongoose.Types.ObjectId(req.params.id) },
-      { quantity: req.bodystock }
-    );
+    console.log(req.body)
+
 
     if (!updatedProduct) {
       return res.status(404).json({ message: "Mahsulot topilmadi" });

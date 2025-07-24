@@ -146,7 +146,7 @@ exports.updateStoreProduct = async (req, res) => {
     if (!storeProduct) {
       return res.status(404).json({ message: "Mahsulot dokonda topilmadi" });
     }
-    storeProduct.quantity = quantity;
+    storeProduct.quantity = Number(quantity);
     await storeProduct.save();
     res
       .status(200)
