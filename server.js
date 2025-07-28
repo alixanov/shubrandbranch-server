@@ -11,9 +11,6 @@ const app = express();
 
 dbConfig.connectDB();
 
-
-
-
 const corsOptions = {
   origin: [
     "https://shubrandbranch.vercel.app",
