@@ -11,9 +11,10 @@ const app = express();
 
 dbConfig.connectDB();
 
+
 const corsOptions = {
   origin: [
-    "https://lolaaftol-f.vercel.app",
+    // "https://lolaaftol-f.vercel.app",
     "http://localhost:3001", // Backend lokal
     "http://localhost:3000", // Backend lokal
     "http://localhost:3004", // Backend lokal
