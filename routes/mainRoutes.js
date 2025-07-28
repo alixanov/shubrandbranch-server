@@ -21,8 +21,8 @@ router.post("/register", adminController.registerAdmin);
 router.post("/login", adminController.loginAdmin);
 router.post(
   "/create-admin",
-  // authMiddleware.verifyToken,
-  // authMiddleware.verifyRole(["admin"]),
+  authMiddleware.verifyToken,
+  authMiddleware.verifyRole(["admin"]),
   adminController.createAdmin
 );
 router.get(
